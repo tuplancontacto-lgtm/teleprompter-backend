@@ -79,7 +79,8 @@ app.post("/api/teleprompter", async (req, res) => {
     res.json({ creado: true });
 
   } catch (error) {
-    res.status(500).json({ error: "Error al crear" });
+    console.error("Error al crear:", error.message);
+    res.status(500).json({ error: "Error al crear", detalle: error.message });
   }
 });
 
