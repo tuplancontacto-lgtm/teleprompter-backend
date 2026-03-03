@@ -77,6 +77,8 @@ app.get("/api/teleprompter", async (req, res) => {
 
 /* ===============================
    RENOVAR DÍAS
+   - Si activo y no expirado → suma desde fecha actual de expiración
+   - Si revocado o expirado  → cuenta desde hoy
 ================================= */
 app.post("/api/teleprompter/:slug/renovar", async (req, res) => {
   try {
@@ -87,7 +89,11 @@ app.post("/api/teleprompter/:slug/renovar", async (req, res) => {
     const asesor = await Teleprompter.findOne({ slug });
     if (!asesor) return res.status(404).json({ error: "No existe" });
 
-    const base = asesor.fechaExpiracion > new Date() ? asesor.fechaExpiracion : new Date();
+    const ahora = new Date();
+    const base = (asesor.activo && asesor.fechaExpiracion > ahora)
+      ? asesor.fechaExpiracion
+      : ahora;
+
     const nuevaFecha = new Date(base);
     nuevaFecha.setDate(nuevaFecha.getDate() + parseInt(dias));
 
