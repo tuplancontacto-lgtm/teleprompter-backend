@@ -2,7 +2,6 @@ require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
-
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -10,7 +9,6 @@ app.use(express.json());
 /* ===============================
    CONEXIÓN MONGO
 ================================= */
-
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log("Mongo conectado"))
   .catch(err => console.log("Error Mongo:", err));
@@ -18,73 +16,109 @@ mongoose.connect(process.env.MONGODB_URI)
 /* ===============================
    MODELO TELEPROMPTER
 ================================= */
-
 const teleprompterSchema = new mongoose.Schema({
   nombre: String,
   slug: { type: String, unique: true },
   activo: { type: Boolean, default: true },
   fechaExpiracion: Date
 });
-
 const Teleprompter = mongoose.model("Teleprompter", teleprompterSchema, "asesores_teleprompter");
 
 /* ===============================
    VALIDAR ACCESO
 ================================= */
-
 app.get("/api/teleprompter/:slug", async (req, res) => {
   try {
     const { slug } = req.params;
-
     const asesor = await Teleprompter.findOne({ slug });
-
     if (!asesor) {
       return res.status(404).json({ acceso: false, mensaje: "No existe" });
     }
-
     if (!asesor.activo) {
       return res.status(403).json({ acceso: false, mensaje: "Desactivado" });
     }
-
     if (asesor.fechaExpiracion && asesor.fechaExpiracion < new Date()) {
       return res.status(403).json({ acceso: false, mensaje: "Expirado" });
     }
-
     res.json({ acceso: true });
-
   } catch (error) {
     res.status(500).json({ error: "Error servidor" });
   }
 });
 
 /* ===============================
-   CREAR ASESOR (para panel futuro)
+   CREAR ASESOR
 ================================= */
-
 app.post("/api/teleprompter", async (req, res) => {
   try {
     const { nombre, slug, dias } = req.body;
-
     const fechaExpiracion = new Date();
     fechaExpiracion.setDate(fechaExpiracion.getDate() + dias);
-
-    const nuevo = new Teleprompter({
-      nombre,
-      slug,
-      fechaExpiracion
-    });
-
+    const nuevo = new Teleprompter({ nombre, slug, fechaExpiracion });
     await nuevo.save();
-
     res.json({ creado: true });
-
   } catch (error) {
     console.error("Error al crear:", error.message);
     res.status(500).json({ error: "Error al crear", detalle: error.message });
   }
 });
 
-/* =============================== */
+/* ===============================
+   LISTAR TODOS (para panel admin)
+================================= */
+app.get("/api/teleprompter", async (req, res) => {
+  try {
+    const asesores = await Teleprompter.find({});
+    res.json(asesores);
+  } catch (error) {
+    res.status(500).json({ error: "Error servidor" });
+  }
+});
 
+/* ===============================
+   RENOVAR DÍAS
+================================= */
+app.post("/api/teleprompter/:slug/renovar", async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const { dias } = req.body;
+    if (!dias) return res.status(400).json({ error: "Faltan días" });
+
+    const asesor = await Teleprompter.findOne({ slug });
+    if (!asesor) return res.status(404).json({ error: "No existe" });
+
+    const base = asesor.fechaExpiracion > new Date() ? asesor.fechaExpiracion : new Date();
+    const nuevaFecha = new Date(base);
+    nuevaFecha.setDate(nuevaFecha.getDate() + parseInt(dias));
+
+    asesor.fechaExpiracion = nuevaFecha;
+    asesor.activo = true;
+    await asesor.save();
+
+    res.json({ success: true, nuevaFecha });
+  } catch (error) {
+    res.status(500).json({ error: "Error servidor" });
+  }
+});
+
+/* ===============================
+   REVOCAR ACCESO
+================================= */
+app.post("/api/teleprompter/:slug/revocar", async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const asesor = await Teleprompter.findOne({ slug });
+    if (!asesor) return res.status(404).json({ error: "No existe" });
+
+    asesor.activo = false;
+    await asesor.save();
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: "Error servidor" });
+  }
+});
+
+/* =============================== */
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("Servidor corriendo en puerto", PORT));
