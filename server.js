@@ -124,7 +124,21 @@ app.post("/api/teleprompter/:slug/revocar", async (req, res) => {
     res.status(500).json({ error: "Error servidor" });
   }
 });
-
+/* ===============================
+   ELIMINAR ASESOR
+================================= */
+app.delete("/api/teleprompter/:slug", async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const resultado = await Teleprompter.deleteOne({ slug });
+    if (resultado.deletedCount === 0) {
+      return res.status(404).json({ error: "No existe" });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: "Error servidor" });
+  }
+});
 /* =============================== */
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("Servidor corriendo en puerto", PORT));
